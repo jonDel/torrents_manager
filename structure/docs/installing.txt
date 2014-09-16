@@ -1,0 +1,37 @@
+______________________________________________________
+______________________________________________________
+Creating your distribution file
+
+Create your distribution file like so:
+
+$ cd path/to/torrentsManager
+$ python setup.py sdist
+
+Running that last command will create a MANIFEST file in your project directory, and also a dist and build directory. Inside that dist directory is the distribution that you’ll be uploading to the PyPI. In our case, the distribution file will be named torrentsManager-0.1.0.tar.gz. Feel free to poke around in the dist directory to look at your distribution.
+
+______________________________________________________
+______________________________________________________
+Uploading your distribution file
+
+Before uploading you first need to create an account at http://pypi.python.org/pypi . Once that’s complete, register your distribution at the PyPI like so:
+
+$ cd path/to/torrentsManager
+$ python setup.py register
+
+Use your existing login (choice #1). It will prompt you to save the login info for future use (to which I agree). Then upload:
+
+$ python setup.py sdist upload
+
+This builds the distribution one last time and then uploads it.
+
+Thanks for your contribution!
+Updating your distribution
+
+Down the road, after you’ve made updates to your distribution and wish to make a new release:
+
+    increment the version number in your setup.py file,
+    update your CHANGES.txt file,
+    if necessary, update the “Contributors” and “Thanks also to” sections of your README.txt file.
+    run python setup.py sdist upload again.
+
+
