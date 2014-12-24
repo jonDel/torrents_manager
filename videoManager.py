@@ -1,38 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import config,re, logging, logging.handlers, sys, ast
+import config,re, ast
 from tpb import TPB, ORDERS
 from pytvdbapi import api
 import datetime
+from loggers import loggers
 
-#####################################################################################
-# Description: class to get torrents from piratebay for series and movies according #
-#              to pre-configured config files                                       #
-#####################################################################################
-class videosManager():
+'''
+Description: class to get torrents from piratebay for series and movies according
+	to pre-configured config files
+'''
+class videosManager(loggers):
 	def __init__(self):
-		# Configuring errors logs
-		self.logger = logging.getLogger('videosManager')
-		self.default_formatter = logging.Formatter('Log: %(message)s | Log level:%(levelname)s | Date:%(asctime)s',datefmt='%d/%m/%Y %I:%M:%S')
-		self.stream_handler = logging.StreamHandler(sys.stdout)
-		self.stream_handler.setLevel(logging.DEBUG)
-		self.stream_handler.setFormatter(self.default_formatter)
-		self.logger.addHandler(self.stream_handler)
-		self.errorLogfile = "/var/log/torrents/torrents.error.log"
-		self.debugLogfile = "/var/log/torrents/torrents.debug.log"
-		# Log file is generated compressed
-		self.console_handler = logging.handlers.RotatingFileHandler(self.debugLogfile+'.bz2',maxBytes=600000,encoding='bz2-codec',backupCount=4)
-		self.console_handler.setLevel(logging.DEBUG)
-		self.console_handler.setFormatter(self.default_formatter)
-		self.error_handler = logging.handlers.RotatingFileHandler(self.errorLogfile+'.bz2',maxBytes=600000,encoding='bz2-codec',backupCount=4)
-		self.error_handler.setLevel(logging.ERROR)
-		self.error_handler.setFormatter(self.default_formatter)
-
-		LEVEL = logging.DEBUG
-		logging.getLogger('transmissionrpc').setLevel(LEVEL)
-		logging.getLogger('OpenSubtitles').setLevel(LEVEL)
-		logging.getLogger('tpb').setLevel(LEVEL)
+		super(videosManager, self).__init__('videosManager','/var/log/torrents_manager/videosManager')
 		# Class atributes
 		self.pirateUrl = 'https://thepiratebay.org'
 		# Getting conf files
@@ -41,52 +22,20 @@ class videosManager():
 		# Getting tvdb database
 		self.tvdb = api.TVDB(self.seriesConfig.ConfigSectionMap("key")['tvdb'])
 
-#########################################################
-# Description: enable/disable register of logs in files #
-# Parameters:                                           #
-#  setFile: False disables, True enables                #
-#########################################################
-	def setLogRotateHandler(self,setFile):
-		if setFile:
-			self.logger.addHandler(self.console_handler)
-			self.logger.addHandler(self.error_handler)
-		else:
-			# Não trato exceção no caso de ainda não ter sido adicionados os handlers
-			try:
-				self.logger.removeHandler(self.stream_handler)
-				self.logger.removeHandler(self.console_handler)
-			except:
-				pass
-
-#################################################################################
-# Description: configures class log level                                       #
-# Parameters:                                                                   #
-#  logLevel: log level ('NOTSET','DEBUG','INFO' 'WARNING', 'ERROR', 'CRITICAL') #
-#################################################################################
-	def setLogLevel(self,logLevel):
-		# Try to remove handler before setting a new one in order not to duplicate
-		# log output
-		try:
-			self.logger.removeHandler(self.stream_handler)
-		except:
-			pass
-		exec "self.logger.setLevel(logging."+logLevel+")"
-		exec "self.logger."+logLevel.lower()+"('Setting log level to "+logLevel+"')"
-
-######################################################################
-# Description: from torrent title, verifies if quality is acceptable #
-# Parameters:                                                        #
-#  torrentName: torrent title                                        #
-# Return:                                                            #
-#  True if torrent is acceptable, False otherwise                    #
-######################################################################
+	'''
+	Description: from torrent title, verifies if episode quality is acceptable
+	Parameters:
+		torrentName: torrent title 
+	Return:
+		True if torrent is acceptable, False otherwise
+	'''
 	def checkSeriesTorrent(self, torrentName):
 		if not  ast.literal_eval(self.seriesConfig.ConfigSectionMap("ignore")['videoResolution']):
 			for rate, resolution in self.seriesConfig.ConfigSectionMap("resolution").iteritems():
 				torrent= re.search('s([0-2][0-9])e([0-2][0-9]).*('+resolution+')', torrentName, re.I)
 				try:
-					videoSeason  = torrent.group(1)
-					videoEpisode = torrent.group(2)
+					torrent.group(1)
+					torrent.group(2)
 					self.logger.info('Torrent: '+torrentName+' has an acceptable resolution: ('+resolution+')')
 					return True
 				except:
@@ -97,13 +46,13 @@ class videosManager():
 			self.logger.info('Ignoring series episode:'+torrentName+' resolution.')
 			return True
 
-######################################################################
-# Description: from torrent title, verifies if quality is acceptable #
-# Parameters:                                                        #
-#  torrentName: torrent title                                        #
-# Return:                                                            #
-#  True if torrent is acceptable, False otherwise                    #
-######################################################################
+	'''
+	Description: from torrent title, verifies if movie quality is acceptable
+	Parameters:
+		torrentName: torrent title
+	Return:
+		True if torrent is acceptable, False otherwise
+	'''
 	def checkMoviesTorrent(self, torrentName):
 		if not  ast.literal_eval(self.moviesConfig.ConfigSectionMap("ignore")['videoResolution']):
 			for rate, resolution in self.moviesConfig.ConfigSectionMap("resolution"):
@@ -120,13 +69,13 @@ class videosManager():
 			self.logger.info('Ignoring movie:'+torrentName+' resolution.')
 			return True
 
-###############################################################################
-# Description: from file name searches pirate bay for apropriate torrent file #
-# Parameters:                                                                 #
-#  fileName: desired file name for a TV serie                                 #
-# Return:                                                                     #
-#  torrent: torrent file downloaded from pirate bay                           #
-###############################################################################
+	'''
+	Description: from file name searches pirate bay for apropriate series torrent file
+	Parameters:
+		fileName: desired file name for a TV serie
+	Return:
+		torrent: torrent file downloaded from pirate bay
+	'''
 	def getSeriesTorrentFromPage(self, fileName):
 		torrentPage = TPB(self.pirateUrl)
 		# Order by major number of seeders first
@@ -147,13 +96,13 @@ class videosManager():
 		self.logger.warning('It was not possible to find a reliable torrent.')
 		return False
 
-#####################################################################################
-# Description: from file name searches pirate bay for apropriate movie torrent file #
-# Parameters:                                                                       #
-#  fileName: desired movie name                                                     #
-# Return:                                                                           #
-#  torrent: movie torrent file downloaded from pirate bay                           #
-#####################################################################################
+	'''
+	Description: from file name searches pirate bay for apropriate movie torrent file
+	Parameters:
+		fileName: desired movie name
+	Return:
+		torrent: movie torrent file downloaded from pirate bay
+	'''
 	def getMovieTorrentFromPage(self, fileName):
 		torrentPage = TPB(self.pirateUrl)
 		# Order by major number of seeders first
@@ -176,13 +125,13 @@ class videosManager():
 		self.logger.warning('It was not possible to find a reliable torrent.')
 		return False
 
-#########################################################
-# Description: verifies if torrent uploader is trusted  #
-# Parameters:                                           #
-#  torrentUploader: torrent uploader                    #
-# Return:                                               #
-#  True if torrent uploader is trusted, False otherwise #
-#########################################################
+	'''
+	Description: verifies if torrent uploader is trusted
+	Parameters:
+		torrentUploader: torrent uploader
+	Return:
+		True if torrent uploader is trusted, False otherwise
+	'''
 	def checkUploader(self, torrentUploader, conf):
 		if not  ast.literal_eval(conf.ConfigSectionMap("ignore")['uploaderReputation']):
 			for rate, uploader in conf.ConfigSectionMap('torrent_uploaders').iteritems():
@@ -195,13 +144,13 @@ class videosManager():
 			self.logger.info('Ignoring uploader reputation.')
 			return True
 
-############################################################################
-# Description: read from a config file and check if there are new episodes #
-#              to download. The config file has the series and each last   #
-#              downloaded episode.                                         #
-# Return:                                                                  #
-#  seriesDict dictionary with each serie and its episodes to download      #
-############################################################################
+	'''
+	Description: read from a config file and check if there are new episodes
+		to download. The config file has the series and each last
+		downloaded episode.
+	Return:
+		seriesDict dictionary with each serie and its episodes to download
+	'''
 	def updateAllSeries(self):
 		self.logger.info('Checking if there are new episodes to be downloaded')
 		for serie, lastEpisode in self.seriesConfig.ConfigSectionMap("last_episode").iteritems():
@@ -212,13 +161,13 @@ class videosManager():
 			#falta colocar pra pegar do piratebay
 		return seriesEpisodeList
 
-############################################################################
-# Description: read from a config file and check if there are new episodes #
-#              to download. The config file has the series and each last   #
-#              downloaded episode.                                         #
-# Return:                                                                  #
-#  seriesDict dictionary with each serie and its episodes to download      #
-############################################################################
+	'''
+	Description: read from a config file and check if there are new episodes
+		to download. The config file has the series and each last
+		downloaded episode.
+	Return:
+		seriesDict dictionary with each serie and its episodes to download
+	'''
 	def getEpisodesToDownload(self, serie, lastEpisode):
 		seriesEpisodeList = []
 		self.logger.info('Checking if there are new episodes to be downloaded')
@@ -236,18 +185,16 @@ class videosManager():
 				if season <= lastDownSeason and episode <= lastDownEp:
 					break
 				else:
-					 
 					seriesEpisodeList.append(serie+" s"+("%2s" % str(season)).replace(' ','0')+"e"+("%2s" % str(episode)).replace(' ','0'))
 		return seriesEpisodeList
 
-######################################################################
-######################################################################
-# Description: from torrent title, verifies if quality is acceptable #
-# Parameters:                                                        #
-#  torrentName: torrent title                                        #
-# Return:                                                            #
-#  True if torrent is acceptable, False otherwise                    #
-######################################################################
+	'''
+	Description: from tvdb, discover last aired episode of the serie
+	Parameters:
+		serie: serie title
+	Return:
+		(lastSeason,lastEpisode): tuple last season and episode if successful, empty string otherwise
+	'''
 	def checkLastEpisode(self, serie):
 		self.logger.debug('Connecting to TVDB site to search for the last episodes of serie '+serie)
 		result = self.tvdb.search(serie, "en")
@@ -268,14 +215,15 @@ class videosManager():
 					return int(lastSeason), int(lastEpisode)
 		return ''
 
-######################################################################
-# Description: from torrent title, verifies if quality is acceptable #
-# Parameters:                                                        #
-#  torrentName: torrent title                                        #
-# Return:                                                            #
-#  True if torrent is acceptable, False otherwise                    #
-######################################################################
-	def getSeasonLastFirstEpisodes(self, season, serie):
+	'''
+	Description: from tvdb, discover first and last episode of the required season
+	Parameters:
+		season: serie season
+		serie: serie title
+	Return:
+		(firstEpisode,lastEpisode): tuple of first and last episode of the required season
+	'''
+	def getSeasonLastAndFirstEpisodes(self, season, serie):
 		self.logger.debug('Connecting to TVDB site to search for the last episodes from season '+str(season)+' of serie '+serie)
 		result = self.tvdb.search(serie, "en")
 		show = result[0]
