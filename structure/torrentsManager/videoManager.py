@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import config,re, ast
-from tpb import TPB, ORDERS
+import configOptions,re, ast
+#from tpb import TPB, ORDERS
 from pytvdbapi import api
 import datetime
 from loggers import loggers
@@ -11,14 +11,15 @@ from loggers import loggers
 Description: class to get torrents from piratebay for series and movies according
 	to pre-configured config files
 '''
-class videosManager(loggers):
+class videoManager(loggers):
 	def __init__(self):
-		super(videosManager, self).__init__('videosManager','/var/log/torrents_manager/videosManager')
+		super(videoManager, self).__init__('videosManager','/var/log/torrents_manager/videosManager')
 		# Class atributes
-		self.pirateUrl = 'https://thepiratebay.org'
 		# Getting conf files
-		self.seriesConfig = config.ConfigOptions('tv.conf')
-		self.moviesConfig = config.ConfigOptions('movies.conf')
+		self.seriesConfig = configOptions.ConfigOptions('tv.conf')
+		self.moviesConfig = configOptions.ConfigOptions('movies.conf')
+		self.seriesTorrentPageUrl = self.seriesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
+		self.moviesTorrentPageUrl = self.moviesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
 		# Getting tvdb database
 		self.tvdb = api.TVDB(self.seriesConfig.ConfigSectionMap("key")['tvdb'])
 
@@ -58,7 +59,7 @@ class videosManager(loggers):
 			for rate, resolution in self.moviesConfig.ConfigSectionMap("resolution"):
 				torrent= re.search('('+resolution+')', torrentName, re.I)
 				try:
-					torResolution = torrent.group(1)
+					torrent.group(1)
 					self.logger.info('Torrent: '+torrentName+' has an acceptable resolution: ('+resolution+')')
 					return True
 				except:
@@ -77,7 +78,7 @@ class videosManager(loggers):
 		torrent: torrent file downloaded from pirate bay
 	'''
 	def getSeriesTorrentFromPage(self, fileName):
-		torrentPage = TPB(self.pirateUrl)
+		torrentPage = TPB(self.seriesTorrentPageUrl)
 		# Order by major number of seeders first
 		torrentMultipage = torrentPage.search(fileName).order(ORDERS.SEEDERS.DES).multipage()
 		for torrent in torrentMultipage:
@@ -104,7 +105,7 @@ class videosManager(loggers):
 		torrent: movie torrent file downloaded from pirate bay
 	'''
 	def getMovieTorrentFromPage(self, fileName):
-		torrentPage = TPB(self.pirateUrl)
+		torrentPage = TPB(self.moviesTorrentPageUrl)
 		# Order by major number of seeders first
 		torrentMultipage = torrentPage.search(fileName).order(ORDERS.SEEDERS.DES).multipage()
 		for torrent in torrentMultipage:
