@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import configOptions,re, ast
-from tpb import TPB, ORDERS
+#from tpb import TPB, ORDERS
 from pytvdbapi import api
 import datetime
-from logs import logs
-import sqlite as sql
+from loggers import loggers
+import sqlite3 as sql
 
-class videoManager(logs):
+class videoManager(loggers):
 	'''
 	Description: class to get torrents from piratebay for series and movies according
 		to pre-configured config files
@@ -18,12 +18,14 @@ class videoManager(logs):
 		# Class atributes
 		self.sqliteDb = sqliteDb
 		# Getting conf files
-		self.seriesConfig = configOptions.ConfigOptions('tv.conf')
-		self.moviesConfig = configOptions.ConfigOptions('movies.conf')
-		self.seriesTorrentPageUrl = self.seriesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
-		self.moviesTorrentPageUrl = self.moviesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
+		#self.seriesConfig = configOptions.ConfigOptions('tv.conf')
+		#self.moviesConfig = configOptions.ConfigOptions('movies.conf')
+		#self.seriesTorrentPageUrl = self.seriesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
+		#self.moviesTorrentPageUrl = self.moviesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
+		self.seriesTorrentPageUrl = 'torrentPageUrl'
+		self.moviesTorrentPageUrl = 'torrentPageUrl'
 		# Getting tvdb database
-		self.tvdb = api.TVDB(self.seriesConfig.ConfigSectionMap("key")['tvdb'])
+		#self.tvdb = api.TVDB(self.seriesConfig.ConfigSectionMap("key")['tvdb'])
 
 	def checkSeriesTorrent(self, torrentName, serie):
 		'''
@@ -46,12 +48,12 @@ class videoManager(logs):
 				match = re.search('s[0-2][0-9]e[0-2][0-9].*?([0-9]{3,4})',torrentName, re.I)
 				torrentRes = int(match.group(1))
 				if torrentRes >= resolution: 
-					self.log.info('Torrent: '+torrentName+' has an acceptable resolution: ('+resolution+')')
+					self.log.info('Torrent: '+torrentName+' has an acceptable resolution: ('+str(resolution)+')')
 					return True
 				else:
-					self.log.info('Torrent: '+torrentName+' has resolution '+torrentRes+' lower than the acceptable resolution '+resolution)
+					self.log.info('Torrent: '+torrentName+' has resolution '+torrentRes+' lower than the acceptable resolution '+str(resolution))
 			except:
-					self.log.info('Torrent: '+torrentName+' does not seem to have resolution: ('+resolution+')')
+					self.log.info('Torrent: '+torrentName+' does not seem to have resolution: ('+str(resolution)+')')
 			self.log.warning('There is no result for this series (season and episode):'+torrentName)
 			return False
 		else:
@@ -161,11 +163,11 @@ class videoManager(logs):
 			else:
 				cur.execute('SELECT Name FROM torrentUploaders ORDER BY Ranking DESC');rows = cur.fetchall();
 				for uploader in rows:
-					if uploader == torrentUploader:
+					if uploader[0] == torrentUploader:
 						con.close()
-						self.log.debug('Uploader '+uploader+' is a trusted one.')
+						self.log.debug('Uploader '+str(uploader[0])+' is a trusted one.')
 						return True
-				self.log.warning('There uploader '+torrentUploader+'is not trusted.')
+				self.log.warning('The uploader '+torrentUploader+' is not trusted.')
 				con.close()
 				return False
 		else:
@@ -180,16 +182,23 @@ class videoManager(logs):
 		Return:
 			seriesDict dictionary with each serie and its episodes to download
 		'''
+		seriesList = []
 		self.log.info('Checking if there are new episodes to be downloaded')
-		for serie, lastEpisode in self.seriesConfig.ConfigSectionMap("last_episode").iteritems():
-			seriesEpisodeList = self.getEpisodesToDownload(self, serie, lastEpisode)
-			for episode in seriesEpisodeList:
-				pass
-				#getMovieTorrentFromPage
-			#falta colocar pra pegar do piratebay
-		return seriesEpisodeList
+		con = sql.connect(self.sqliteDb)
+		cur = con.cursor()
+		cur.execute('SELECT  FROM Series ORDER BY  Aired DESC LIMIT 1');rows = cur.fetchall();
+		cur.execute('SELECT Name FROM SeriesConfig');rows = cur.fetchall();
+		for serieTuple in rows:
+			seriesList.append(serieTuple[0])
+		for serie in serieTuple:
+			cur.execute('SELECT Serie,Season,Episode FROM Series ORDER BY Aired DESC LIMIT 1');rows = cur.fetchall();
+			season = rows[0][1]
+			episode = rows[0][2]
+			episodesToDownload = self.getEpisodesToDownload(serie,season,episode)
+			for torrentName in episodesToDownload:
+				self.getSeriesTorrentFromPage(self, torrentName, serie)
 
-	def getEpisodesToDownload(self, serie, lastEpisode):
+	def getEpisodesToDownload(self, serie, lastDownSeason, lastDownEp):
 		'''
 		Description: read from a config file and check if there are new episodes
 			to download. The config file has the series and each last
@@ -199,10 +208,8 @@ class videoManager(logs):
 		'''
 		seriesEpisodeList = []
 		self.log.info('Checking if there are new episodes to be downloaded')
-		lastDownEp = int(lastEpisode[4:7])
-		lastDownSeason = int(lastEpisode[1:3])
 		self.log.debug('Tv serie is '+serie)
-		self.log.debug('Last downloaded episode was '+lastEpisode)
+		self.log.debug("Last downloaded episode was s"+("%2s" % str(lastDownSeason)).replace(' ','0')+"e"+("%2s" % str(lastDownEp)).replace(' ','0'))
 		lastSeason,lastEp = self.checkLastEpisode(serie)
 		# Search for all seasons above last downloaded season
 		for season in range(lastSeason,lastDownSeason-1,-1):
@@ -243,22 +250,6 @@ class videoManager(logs):
 					return int(lastSeason), int(lastEpisode)
 		return ''
 
-	def getSeasonLastAndFirstEpisodes(self, season, serie):
-		'''
-		Description: from tvdb, discover first and last episode of the required season
-		Parameters:
-			season: serie season
-			serie: serie title
-		Return:
-			(firstEpisode,lastEpisode): tuple of first and last episode of the required season
-		'''
-		self.log.debug('Connecting to TVDB site to search for the last episodes from season '+str(season)+' of serie '+serie)
-		result = self.tvdb.search(serie, "en")
-		show = result[0]
-		firstEpisode = ("%2s" % next(iter(show[season])).EpisodeNumber).replace(' ','0')
-		lastEpisode = ("%2s" % show[season][len(show[season])].EpisodeNumber).replace(' ','0')
-		self.log.debug('First episode is '+firstEpisode+' and last episode:'+lastEpisode)
-		return int(firstEpisode),int(lastEpisode)
 		
 #>> help(inotifyx)
 #
