@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import configOptions,re, ast
-#from tpb import TPB, ORDERS
-from pytvdbapi import api
+import re, ast
+from tpb import TPB, ORDERS
+from pytvdbapi import api as tvdbApi
 import datetime
 from loggers import loggers
 import sqlite3 as sql
@@ -11,21 +11,21 @@ import sqlite3 as sql
 class videoManager(loggers):
 	'''
 	Description: class to get torrents from piratebay for series and movies according
-		to pre-configured config files
+		to pre-configured databases
 	'''
-	def __init__(self, sqliteDb):
+	def __init__(self, sqliteDb, tvdbKey):
 		super(videoManager, self).__init__('videosManager','/var/log/torrents_manager/videosManager')
 		# Class atributes
 		self.sqliteDb = sqliteDb
-		# Getting conf files
-		#self.seriesConfig = configOptions.ConfigOptions('tv.conf')
-		#self.moviesConfig = configOptions.ConfigOptions('movies.conf')
-		#self.seriesTorrentPageUrl = self.seriesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
-		#self.moviesTorrentPageUrl = self.moviesConfig.ConfigSectionMap("ignore")['torrentPageUrl']
-		self.seriesTorrentPageUrl = 'torrentPageUrl'
-		self.moviesTorrentPageUrl = 'torrentPageUrl'
-		# Getting tvdb database
-		#self.tvdb = api.TVDB(self.seriesConfig.ConfigSectionMap("key")['tvdb'])
+		# Getting conf att
+		con = sql.connect(self.sqliteDb)
+		cur = con.cursor()
+		cur.execute("SELECT tvdbKey FROM GeneralConfig");
+		tvdbKey = cur.fetchone(); tvdbKey= tvdbKey[0]
+		self.tvdb = tvdbApi.TVDB(tvdbKey)
+		cur.execute("SELECT torrentPageUrl FROM GeneralConfig");
+		self.seriesTorrentPageUrl = cur.fetchone(); self.seriesTorrentPageUrl = self.seriesTorrentPageUrl[0]
+		con.close()
 
 	def checkSeriesTorrent(self, torrentName, serie):
 		'''
@@ -61,28 +61,28 @@ class videoManager(loggers):
 			self.log.info('Ignoring series episode:'+torrentName+' resolution.')
 			return True
 
-	def checkMoviesTorrent(self, torrentName):
-		'''
-		Description: from torrent title, verifies if movie quality is acceptable
-		Parameters:
-			torrentName: torrent title
-		Return:
-			True if torrent is acceptable, False otherwise
-		'''
-		if not  ast.literal_eval(self.moviesConfig.ConfigSectionMap("ignore")['videoResolution']):
-			for rate, resolution in self.moviesConfig.ConfigSectionMap("resolution"):
-				torrent= re.search('('+resolution+')', torrentName, re.I)
-				try:
-					torrent.group(1)
-					self.log.info('Torrent: '+torrentName+' has an acceptable resolution: ('+resolution+')')
-					return True
-				except:
-					self.log.info('Torrent: '+torrentName+' does not have resolution: ('+resolution+')')
-			self.log.warning('There is no result for this movie: '+torrentName )
-			return False
-		else:
-			self.log.info('Ignoring movie:'+torrentName+' resolution.')
-			return True
+#	def checkMoviesTorrent(self, torrentName):
+#		'''
+#		Description: from torrent title, verifies if movie quality is acceptable
+#		Parameters:
+#			torrentName: torrent title
+#		Return:
+#			True if torrent is acceptable, False otherwise
+#		'''
+#		if not  ast.literal_eval(self.moviesConfig.ConfigSectionMap("ignore")['videoResolution']):
+#			for rate, resolution in self.moviesConfig.ConfigSectionMap("resolution"):
+#				torrent= re.search('('+resolution+')', torrentName, re.I)
+#				try:
+#					torrent.group(1)
+#					self.log.info('Torrent: '+torrentName+' has an acceptable resolution: ('+resolution+')')
+#					return True
+#				except:
+#					self.log.info('Torrent: '+torrentName+' does not have resolution: ('+resolution+')')
+#			self.log.warning('There is no result for this movie: '+torrentName )
+#			return False
+#		else:
+#			self.log.info('Ignoring movie:'+torrentName+' resolution.')
+#			return True
 
 	def getSeriesTorrentFromPage(self, fileName, serie):
 		'''
@@ -101,8 +101,6 @@ class videoManager(loggers):
 			if self.checkSeriesTorrent(str(torrent.title)):
 				self.log.debug('Testing uploader`s '+torrent.user+' reputation:')
 				if self.checkUploader(str(torrent.user), serie):
-					#self.videoTitle = torrent.title
-					#self.magnetLink = torrent.magnet_link
 					self.log.debug('Chosen torrent`s title is: '+str(torrent.title))
 					return torrent
 				else:
@@ -112,34 +110,34 @@ class videoManager(loggers):
 		self.log.warning('It was not possible to find a reliable torrent.')
 		return False
 
-	def getMovieTorrentFromPage(self, fileName):
-		'''
-		Description: from file name searches pirate bay for apropriate movie torrent file
-		Parameters:
-			fileName: desired movie name
-		Return:
-			torrent: movie torrent file downloaded from pirate bay
-		'''
-		torrentPage = TPB(self.moviesTorrentPageUrl)
-		# Order by major number of seeders first
-		torrentMultipage = torrentPage.search(fileName).order(ORDERS.SEEDERS.DES).multipage()
-		for torrent in torrentMultipage:
-			self.log.debug("Testing video resolution for torrent:"+str(torrent.title)+" from uploader "+str(torrent.user))
-			if self.checkMoviesTorrent(str(torrent.title)):
-				self.log.debug("Testing uploader's quality:")
-				if self.checkUploader(str(torrent.user), self.moviesConfig):
-					self.log.debug('Torrent title is: '+str(torrent.title))
-					self.log.debug('Torrent files are: '+str(torrent.files))
-					self.log.debug('Uploader is: '+str(torrent.user))
-					self.log.debug('The number of leechers is: '+ str(torrent.leechers))
-					self.log.debug('The number of seeders is: '+ str(torrent.seeders))
-					return torrent
-				else:
-					self.log.warning('I dont want anything from an untrusted uploader')
-			else:
-				self.log.debug('It doesnt correspond to the file I want')
-		self.log.warning('It was not possible to find a reliable torrent.')
-		return False
+#	def getMovieTorrentFromPage(self, fileName):
+#		'''
+#		Description: from file name searches pirate bay for apropriate movie torrent file
+#		Parameters:
+#			fileName: desired movie name
+#		Return:
+#			torrent: movie torrent file downloaded from pirate bay
+#		'''
+#		torrentPage = TPB(self.moviesTorrentPageUrl)
+#		# Order by major number of seeders first
+#		torrentMultipage = torrentPage.search(fileName).order(ORDERS.SEEDERS.DES).multipage()
+#		for torrent in torrentMultipage:
+#			self.log.debug("Testing video resolution for torrent:"+str(torrent.title)+" from uploader "+str(torrent.user))
+#			if self.checkMoviesTorrent(str(torrent.title)):
+#				self.log.debug("Testing uploader's quality:")
+#				if self.checkUploader(str(torrent.user), self.moviesConfig):
+#					self.log.debug('Torrent title is: '+str(torrent.title))
+#					self.log.debug('Torrent files are: '+str(torrent.files))
+#					self.log.debug('Uploader is: '+str(torrent.user))
+#					self.log.debug('The number of leechers is: '+ str(torrent.leechers))
+#					self.log.debug('The number of seeders is: '+ str(torrent.seeders))
+#					return torrent
+#				else:
+#					self.log.warning('I dont want anything from an untrusted uploader')
+#			else:
+#				self.log.debug('It doesnt correspond to the file I want')
+#		self.log.warning('It was not possible to find a reliable torrent.')
+#		return False
 
 	def checkUploader(self, torrentUploader, serie):
 		'''
@@ -176,8 +174,8 @@ class videoManager(loggers):
 
 	def updateAllSeries(self):
 		'''
-		Description: read from a config file and check if there are new episodes
-			to download. The config file has the series and each last
+		Description: read from a database and check if there are new episodes
+			to download. The database has the series and each last
 			downloaded episode.
 		Return:
 			seriesDict dictionary with each serie and its episodes to download
@@ -197,11 +195,12 @@ class videoManager(loggers):
 			episodesToDownload = self.getEpisodesToDownload(serie,season,episode)
 			for torrentName in episodesToDownload:
 				self.getSeriesTorrentFromPage(self, torrentName, serie)
+		con.close()
 
 	def getEpisodesToDownload(self, serie, lastDownSeason, lastDownEp):
 		'''
-		Description: read from a config file and check if there are new episodes
-			to download. The config file has the series and each last
+		Description: read from a database and check if there are new episodes
+			to download. The database has the series and each last
 			downloaded episode.
 		Return:
 			seriesDict dictionary with each serie and its episodes to download
