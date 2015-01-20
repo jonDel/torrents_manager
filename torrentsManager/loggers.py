@@ -12,18 +12,18 @@ class loggers(object):
 	def __init__(self, logName, logFolderPath=False):
 		# Configurando os logs de erro
 		self.log = logging.getLogger(logName)
-		self.default_formatter = logging.Formatter('Log: %(message)s | Nível de Log:%(levelname)s | Data:%(asctime)s',datefmt='%m/%d/%Y %I:%M:%S')
+		self.default_formatter = logging.Formatter('Log: %(message)s | Nível de Log:%(levelname)s | Data:%(asctime)s',datefmt='%d/%m/%Y %I:%M:%S')
 		# Apenas adicionamos um novo handler de stream se já não existir um
 		if not len(self.log.handlers):
-			self.default_formatter = logging.Formatter('Log: %(message)s | Nível de Log:%(levelname)s | Data:%(asctime)s',datefmt='%m/%d/%Y %I:%M:%S')
+			self.default_formatter = logging.Formatter('Log: %(message)s | Nível de Log:%(levelname)s | Data:%(asctime)s',datefmt='%d/%m/%Y %I:%M:%S')
 			self.stream_handler = logging.StreamHandler(sys.stdout)
 			self.stream_handler.setLevel(logging.DEBUG)
 			self.stream_handler.setFormatter(self.default_formatter)
 			self.log.addHandler(self.stream_handler)
 		if logFolderPath != False:
 			# Arquivo de log é gerado compactado
-			self.errorLogfile = logFolderPath+"/"+logName+".error.log.bz2"
-			self.debugLogfile = logFolderPath+"/"+logName+".debug.log.bz2"
+			self.errorLogfile = (logFolderPath if logFolderPath.endswith('/') else logFolderPath+'/') +logName+".error.log.bz2"
+			self.errorLogfile = (logFolderPath if logFolderPath.endswith('/') else logFolderPath+'/') +logName+".debug.log.bz2"
 			if not os.path.isdir(logFolderPath):
 				try:
 					os.mkdir(logFolderPath)
@@ -38,6 +38,8 @@ class loggers(object):
 					self.debug_handler.setFormatter(self.default_formatter)
 					self.error_handler.setLevel(logging.ERROR)
 					self.error_handler.setFormatter(self.default_formatter)
+					self.log.addHandler(self.debug_handler)
+					self.log.addHandler(self.error_handler)
 				except:
 					print 'Não foi possível criar os arquivos de log na pasta '+logFolderPath+'. Setar as permissões necessárias para esta pasta.'
 

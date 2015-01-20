@@ -210,16 +210,19 @@ class videoManager(loggers):
 		self.log.debug('Tv serie is '+serie)
 		self.log.debug("Last downloaded episode was s"+("%2s" % str(lastDownSeason)).replace(' ','0')+"e"+("%2s" % str(lastDownEp)).replace(' ','0'))
 		lastSeason,lastEp = self.checkLastEpisode(serie)
-		# Search for all seasons above last downloaded season
-		for season in range(lastSeason,lastDownSeason-1,-1):
-			firstEpSeason, lastEpSeason = self.getSeasonLastFirstEpisodes(season, serie)
-			# Search for all episodes above last downloaded episode
-			self.log.debug('Searching in season '+str(season)+' from '+str(lastSeason)+' seasons')
-			for episode in range(lastEpSeason,firstEpSeason-1,-1):
-				if season <= lastDownSeason and episode <= lastDownEp:
-					break
-				else:
-					seriesEpisodeList.append(serie+" s"+("%2s" % str(season)).replace(' ','0')+"e"+("%2s" % str(episode)).replace(' ','0'))
+		if not (lastSeason == '' or lastEp == ''):
+			# Search for all seasons above last downloaded season
+			for season in range(lastSeason,lastDownSeason-1,-1):
+				firstEpSeason, lastEpSeason = self.getSeasonLastFirstEpisodes(season, serie)
+				# Search for all episodes above last downloaded episode
+				self.log.debug('Searching in season '+str(season)+' from '+str(lastSeason)+' seasons')
+				for episode in range(lastEpSeason,firstEpSeason-1,-1):
+					if season <= lastDownSeason and episode <= lastDownEp:
+						break
+					else:
+						seriesEpisodeList.append(serie+" s"+("%2s" % str(season)).replace(' ','0')+"e"+("%2s" % str(episode)).replace(' ','0'))
+		else:
+			self.log.error('Cant get last episode and season for serie '+serie+'!')
 		return seriesEpisodeList
 
 	def checkLastEpisode(self, serie):
